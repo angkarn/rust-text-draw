@@ -10,8 +10,8 @@ pub struct Widget {
     p: Option<u8>,           // align widget (y axis) 0,1,2
     x: Option<f32>,          // position x axis
     y: Option<f32>,          // position x axis
-    w: Option<u32>,          // width
-    h: Option<u32>,          // height
+    w: Option<f32>,          // width
+    h: Option<f32>,          // height
     f: Option<u32>,          // font
     fs: Option<f32>,         // font size
     c: Option<String>,       // font color
@@ -20,10 +20,10 @@ pub struct Widget {
     ts: Option<Vec<Texts>>,  // texts item
     wi: Option<Vec<Widget>>, // widget item
     t: Option<String>,       // text
-    ml: Option<u32>,         // margin left
-    mt: Option<u32>,         // margin top
-    mr: Option<u32>,         // margin right
-    mb: Option<u32>,         // margin bottom
+    ml: Option<f32>,         // margin left
+    mt: Option<f32>,         // margin top
+    mr: Option<f32>,         // margin right
+    mb: Option<f32>,         // margin bottom
 }
 
 #[derive(Deserialize, Debug, PartialEq, Clone)]
@@ -38,14 +38,18 @@ pub struct ResultDrawText {
     pub count_pixel_out: u32,
 }
 
+fn cal_percent(percent: f32, of: f32) -> f32 {
+    of * (percent / 100.0)
+}
+
 fn draw_item(
     swash_cache: &mut SwashCache,
     font_system: &mut FontSystem,
     image: &mut DynamicImage,
     start_x: f32,
     start_y: f32,
-    text_layout_width: u32,
-    text_layout_height: u32,
+    text_layout_width: f32,
+    text_layout_height: f32,
     widgets: Vec<Widget>,
     default_font_family: u32,
     default_font_size: f32,
@@ -54,36 +58,46 @@ fn draw_item(
     faces: Vec<String>,
 ) -> Result<ResultDrawText, String> {
     let mut count_pixel_out = 0;
-    for widget in &widgets {
-        let widget_margin_left = widget.ml.unwrap_or(0);
-        let widget_margin_top = widget.mt.unwrap_or(0);
-        let widget_margin_right = widget.mr.unwrap_or(0);
-        let widget_margin_bottom = widget.mb.unwrap_or(0);
 
-        let widget_x = widget.x.unwrap_or(0.0) + start_x + widget_margin_left as f32;
-        let widget_y = widget.y.unwrap_or(0.0) + start_y + widget_margin_top as f32;
+    for widget in &widgets {
+        let widget_margin_left = cal_percent(widget.ml.unwrap_or(0.0), text_layout_width);
+        let widget_margin_top = cal_percent(widget.mt.unwrap_or(0.0), text_layout_height);
+        let widget_margin_right = cal_percent(widget.mr.unwrap_or(0.0), text_layout_width);
+        let widget_margin_bottom = cal_percent(widget.mb.unwrap_or(0.0), text_layout_height);
+        let widget_width = cal_percent(widget.w.unwrap_or(100.0), text_layout_width)
+            - widget_margin_left
+            - widget_margin_right;
+        let widget_height = cal_percent(widget.h.unwrap_or(100.0), text_layout_height)
+            - widget_margin_top
+            - widget_margin_bottom;
+        let widget_x =
+            cal_percent(widget.x.unwrap_or(0.0), text_layout_width) + start_x + widget_margin_left;
+        let widget_y =
+            cal_percent(widget.y.unwrap_or(0.0), text_layout_height) + start_y + widget_margin_top;
         let widget_a = widget.a.unwrap_or(0);
         let widget_p = widget.p.unwrap_or(0);
-
-        let widget_width =
-            widget.w.unwrap_or(text_layout_width) - widget_margin_left - widget_margin_right;
-        let widget_height =
-            widget.h.unwrap_or(text_layout_height) - widget_margin_top - widget_margin_bottom;
         let widget_font_size = widget.fs.unwrap_or(default_font_size);
         let widget_mlh = widget.mlh.unwrap_or(1.5);
 
         // Text metrics indicate the font size and line height of a buffer
-        let metrics = Metrics::new(widget_font_size, widget_font_size * widget_mlh);
+        let metrics = Metrics::new(
+            cal_percent(widget_font_size, image.width() as f32),
+            cal_percent(widget_font_size, image.width() as f32) * widget_mlh,
+        );
 
         // A Buffer provides shaping and layout for a UTF-8 string, create one per text widget
-        let mut buffer = Buffer::new_empty(metrics.scale(2.0));
+        let mut buffer = Buffer::new_empty(metrics.scale(1.0));
         // let mut buffer = Buffer::new_empty(metrics.scale(1.0));
 
         // Borrow buffer together with the font system for more convenient method calls
-        let mut buffer = buffer.borrow_with(font_system);
+        buffer.borrow_with(font_system);
 
         // Set a size for the text buffer, in pixels
-        buffer.set_size(Some(widget_width as f32), Some(widget_height as f32));
+        buffer.set_size(
+            font_system,
+            Some(widget_width as f32),
+            Some(widget_height as f32),
+        );
 
         // wrap text
         // buffer.set_wrap(cosmic_text::Wrap::None);
@@ -121,9 +135,8 @@ fn draw_item(
             .to_be_bytes();
 
             // fill bg base image
-            for y in 0..widget_height {
-                for x in 0..widget_width {
-                    // println!("x{} y{}", x, y);
+            for y in 0..widget_height as u32 {
+                for x in 0..widget_width as u32 {
                     image.put_pixel(x + widget_x as u32, y + widget_y as u32, Rgba(rgba_fill));
                 }
             }
@@ -137,7 +150,8 @@ fn draw_item(
             for it in widget_items {
                 if !it.t.is_empty() {
                     let font_id = it.f.unwrap_or(widget.f.unwrap_or(default_font_family));
-                    let font_size = it.fs.unwrap_or(widget_font_size);
+                    let font_size =
+                        cal_percent(it.fs.unwrap_or(widget_font_size), image.width() as f32);
 
                     let color = match it.c.is_some() {
                         true => {
@@ -166,7 +180,7 @@ fn draw_item(
                 }
             }
 
-            buffer.set_rich_text(spans.to_vec(), attrs, Shaping::Advanced);
+            buffer.set_rich_text(font_system, spans.to_vec(), attrs, Shaping::Advanced);
         }
 
         // Sum size area
@@ -179,8 +193,6 @@ fn draw_item(
             }
             sum_height += run.line_height;
         }
-
-        // println!("sum_height:{}",sum_height);
 
         // Inspect the output runs
         if !skip_size_check {
@@ -203,64 +215,71 @@ fn draw_item(
         }
 
         // Perform shaping as desired
-        buffer.shape_until_scroll(true);
+        buffer.shape_until_scroll(font_system, true);
 
         // buffer.redraw();
 
         // Draw the buffer (for performance, instead use SwashCache directly)
-        buffer.draw(swash_cache, widget_color, |d_x, d_y, d_w, d_h, color| {
-            if color.a() == 0 || d_w != 1 || d_h != 1 || d_x < 0 || d_y < 0 {
-                return;
-            }
-
-            let px = d_x as f32 + widget_x;
-            let py = match widget_p {
-                // TOP
-                0 => d_y as f32 + widget_y,
-                // Middle
-                1 => {
-                    (d_y as f32 + (widget_height / 2) as f32 - (sum_height / 2.0)) as f32 + widget_y
+        buffer.draw(
+            font_system,
+            swash_cache,
+            widget_color,
+            |d_x, d_y, d_w, d_h, color| {
+                if color.a() == 0 || d_w != 1 || d_h != 1 || d_x < 0 || d_y < 0 {
+                    return;
                 }
-                // Bottom
-                2 => d_y as f32 + widget_y + widget_height as f32 - sum_height,
-                _ => d_y as f32 + widget_y,
-            };
 
-            if px < image.width() as f32 && py < image.height() as f32 {
-                let base_color = image.get_pixel(px as u32, py as u32);
-                let new_alpha = color.a() as f32 / 255.0;
-                let base_alpha = base_color[3] as f32 / 255.0;
+                let px = d_x as f32 + widget_x;
+                let py = match widget_p {
+                    // TOP
+                    0 => d_y as f32 + widget_y,
+                    // Middle
+                    1 => {
+                        (d_y as f32 + (widget_height / 2.0) as f32 - (sum_height / 2.0)) as f32
+                            + widget_y
+                    }
 
-                let scale = |dc: u8, bc: u8| {
-                    (dc as f32 * new_alpha) + (bc as f32 * base_alpha * (1.0 - new_alpha))
+                    // Bottom
+                    2 => d_y as f32 + widget_y + widget_height as f32 - sum_height,
+                    _ => d_y as f32 + widget_y,
                 };
 
-                let r = scale(color.r(), base_color[0]);
-                let g = scale(color.g(), base_color[1]);
-                let b = scale(color.b(), base_color[2]);
-                let alpha = 255.0 * (new_alpha + base_alpha * (1.0 - new_alpha));
+                if px < image.width() as f32 && py < image.height() as f32 {
+                    let base_color = image.get_pixel(px as u32, py as u32);
+                    let new_alpha = color.a() as f32 / 255.0;
+                    let base_alpha = base_color[3] as f32 / 255.0;
 
-                image.put_pixel(
-                    px as u32,
-                    py as u32,
-                    Rgba([r as u8, g as u8, b as u8, alpha as u8]),
-                );
+                    let scale = |dc: u8, bc: u8| {
+                        (dc as f32 * new_alpha) + (bc as f32 * base_alpha * (1.0 - new_alpha))
+                    };
 
-                // Scale by alpha (mimics blending with black)
+                    let r = scale(color.r(), base_color[0]);
+                    let g = scale(color.g(), base_color[1]);
+                    let b = scale(color.b(), base_color[2]);
+                    let alpha = 255.0 * (new_alpha + base_alpha * (1.0 - new_alpha));
 
-                // let scale = |c: u8| (c as i32 * color.a() as i32 / 255).clamp(0, 255) as u8;
+                    image.put_pixel(
+                        px as u32,
+                        py as u32,
+                        Rgba([r as u8, g as u8, b as u8, alpha as u8]),
+                    );
 
-                // let r = scale(color.r());
-                // let g = scale(color.g());
-                // let b = scale(color.b());
-                // // let a = scale(color.a());
-                // let a = 255.0 * (new_alpha + base_alpha * (1.0 - new_alpha));
-                // image.put_pixel(px, py, Rgba([r as u8, g as u8, b as u8, a as u8]));
-            } else {
-                println!("{:#?}", (d_x, d_y, d_w, d_h));
-                count_pixel_out += 1;
-            }
-        });
+                    // Scale by alpha (mimics blending with black)
+
+                    // let scale = |c: u8| (c as i32 * color.a() as i32 / 255).clamp(0, 255) as u8;
+
+                    // let r = scale(color.r());
+                    // let g = scale(color.g());
+                    // let b = scale(color.b());
+                    // // let a = scale(color.a());
+                    // let a = 255.0 * (new_alpha + base_alpha * (1.0 - new_alpha));
+                    // image.put_pixel(px, py, Rgba([r as u8, g as u8, b as u8, a as u8]));
+                } else {
+                    println!("{:#?}", (d_x, d_y, d_w, d_h));
+                    count_pixel_out += 1;
+                }
+            },
+        );
 
         if widget.wi.is_some() {
             let result_draw_item = draw_item(
@@ -296,8 +315,8 @@ pub fn draw_text(
     image: &mut DynamicImage,
     start_x: f32,
     start_y: f32,
-    text_layout_width: u32,
-    text_layout_height: u32,
+    text_layout_width: f32,
+    text_layout_height: f32,
     widgets: Vec<Widget>,
     default_font_size: f32,
     default_color: &String,
