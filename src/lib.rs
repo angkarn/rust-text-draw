@@ -94,7 +94,6 @@ fn draw_item(
 
         // Set a size for the text buffer, in pixels
         buffer.set_size(
-            font_system,
             Some(widget_width as f32),
             Some(widget_height as f32),
         );
@@ -191,6 +190,7 @@ fn draw_item(
                     spans.push((
                         it.t.as_str(),
                         attrs
+                            .clone()
                             .family(cosmic_text::Family::Name(
                                 faces.get(font_id as usize).unwrap_or(faces.get(0).unwrap()),
                             ))
@@ -200,8 +200,11 @@ fn draw_item(
                 }
             }
 
-            buffer.set_rich_text(font_system, spans.to_vec(), attrs, Shaping::Advanced);
+            buffer.set_rich_text(spans.to_vec(), &attrs, Shaping::Advanced, None);
         }
+
+        // cosmic-text >= 0.19 shapes lazily: shape before measuring layout runs
+        buffer.shape_until_scroll(font_system, true);
 
         // Sum size area
         let mut sum_width = 0.0;
