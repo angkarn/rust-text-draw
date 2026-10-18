@@ -135,9 +135,29 @@ fn draw_item(
             .to_be_bytes();
 
             // fill bg base image
-            for y in 0..widget_height as u32 {
-                for x in 0..widget_width as u32 {
-                    image.put_pixel(x + widget_x as u32, y + widget_y as u32, Rgba(rgba_fill));
+            if let Some(buf) = image.as_mut_rgba8() {
+                // Fast path: write whole row slices instead of put_pixel per pixel
+                let img_w = buf.width() as usize;
+                let x0 = widget_x as u32 as usize;
+                let y0 = widget_y as u32 as usize;
+                let x1 = x0 + widget_width as u32 as usize;
+                let y1 = y0 + widget_height as u32 as usize;
+                assert!(
+                    x1 <= img_w && y1 <= buf.height() as usize,
+                    "fill area out of image bounds"
+                );
+                let raw: &mut [u8] = buf;
+                for y in y0..y1 {
+                    let row = &mut raw[(y * img_w + x0) * 4..(y * img_w + x1) * 4];
+                    for px in row.chunks_exact_mut(4) {
+                        px.copy_from_slice(&rgba_fill);
+                    }
+                }
+            } else {
+                for y in 0..widget_height as u32 {
+                    for x in 0..widget_width as u32 {
+                        image.put_pixel(x + widget_x as u32, y + widget_y as u32, Rgba(rgba_fill));
+                    }
                 }
             }
         }
@@ -219,6 +239,9 @@ fn draw_item(
 
         // buffer.redraw();
 
+        let image_width = image.width();
+        let image_height = image.height();
+
         // Draw the buffer (for performance, instead use SwashCache directly)
         buffer.draw(
             font_system,
@@ -244,8 +267,12 @@ fn draw_item(
                     _ => d_y as f32 + widget_y,
                 };
 
-                if px < image.width() as f32 && py < image.height() as f32 {
-                    let base_color = image.get_pixel(px as u32, py as u32);
+                if px < image_width as f32 && py < image_height as f32 {
+                    let base_color = match image {
+                        // Fast path: direct buffer access (skips DynamicImage conversion)
+                        DynamicImage::ImageRgba8(buf) => *buf.get_pixel(px as u32, py as u32),
+                        _ => image.get_pixel(px as u32, py as u32),
+                    };
                     let new_alpha = color.a() as f32 / 255.0;
                     let base_alpha = base_color[3] as f32 / 255.0;
 
@@ -258,11 +285,13 @@ fn draw_item(
                     let b = scale(color.b(), base_color[2]);
                     let alpha = 255.0 * (new_alpha + base_alpha * (1.0 - new_alpha));
 
-                    image.put_pixel(
-                        px as u32,
-                        py as u32,
-                        Rgba([r as u8, g as u8, b as u8, alpha as u8]),
-                    );
+                    let new_color = Rgba([r as u8, g as u8, b as u8, alpha as u8]);
+                    match image {
+                        DynamicImage::ImageRgba8(buf) => {
+                            *buf.get_pixel_mut(px as u32, py as u32) = new_color
+                        }
+                        _ => image.put_pixel(px as u32, py as u32, new_color),
+                    }
 
                     // Scale by alpha (mimics blending with black)
 
@@ -322,8 +351,10 @@ pub fn draw_text(
     default_color: &String,
     skip_size_check: bool,
 ) -> Result<ResultDrawText, String> {
+    // Use `db()` (not `db_mut()`): `db_mut()` clears FontSystem's font-matches cache,
+    // which would throw away cached font fallback lookups on every call.
     let faces = font_system
-        .db_mut()
+        .db()
         .faces()
         .map(|x| x.families.get(0).unwrap().0.to_string())
         .collect::<Vec<String>>()
