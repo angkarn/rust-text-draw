@@ -7,7 +7,7 @@ it for every row of your data. Text shaping and font fallback come from
 [cosmic-text](https://github.com/pop-os/cosmic-text) (HarfRust + skrifa + swash), so Thai, Arabic,
 Devanagari, CJK and color emoji render correctly in the same line.
 
-![output](https://raw.githubusercontent.com/angkarn/rust-text-draw/main/output.png)
+![output](output.png)
 
 `cargo run --example demo` renders the image above from [`examples/demo.json5`](examples/demo.json5).
 
@@ -15,7 +15,7 @@ Devanagari, CJK and color emoji render correctly in the same line.
 
 ```toml
 [dependencies]
-textplate = { git = "https://github.com/angkarn/rust-text-draw", tag = "v0.1.0" }
+textplate = { git = "https://github.com/angkarn/textplate", tag = "v0.1.0" }
 ```
 
 ## Usage

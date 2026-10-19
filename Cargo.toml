@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 rust-version = "1.89"
 description = "Render data-driven templates of rich, multilingual text onto images"
-repository = "https://github.com/angkarn/rust-text-draw"
+repository = "https://github.com/angkarn/textplate"
 keywords = ["text", "template", "image", "font", "render"]
 categories = ["graphics", "multimedia::images", "text-processing"]
 
