@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-image = { version = "0.24", default-features = false, features = ["png", "jpeg", "webp", "gif", "bmp"] }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif", "bmp"] }
 cosmic-text = { version = "0.19", default-features = false, features = ["std", "swash"] }
 serde = { version = "1.0.209", features = ["derive"], default-features = false }
 json5 = "0.4.1"
