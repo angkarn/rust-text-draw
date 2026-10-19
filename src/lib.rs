@@ -271,24 +271,29 @@ fn draw_item(
                 };
 
                 if px < image_width as f32 && py < image_height as f32 {
-                    let base_color = match image {
-                        // Fast path: direct buffer access (skips DynamicImage conversion)
-                        DynamicImage::ImageRgba8(buf) => *buf.get_pixel(px as u32, py as u32),
-                        _ => image.get_pixel(px as u32, py as u32),
+                    let new_color = if color.a() == 255 {
+                        // Opaque pixel: blending yields the text color exactly, so skip it
+                        Rgba([color.r(), color.g(), color.b(), 255])
+                    } else {
+                        let base_color = match image {
+                            // Fast path: direct buffer access (skips DynamicImage conversion)
+                            DynamicImage::ImageRgba8(buf) => *buf.get_pixel(px as u32, py as u32),
+                            _ => image.get_pixel(px as u32, py as u32),
+                        };
+                        let new_alpha = color.a() as f32 / 255.0;
+                        let base_alpha = base_color[3] as f32 / 255.0;
+
+                        let scale = |dc: u8, bc: u8| {
+                            (dc as f32 * new_alpha) + (bc as f32 * base_alpha * (1.0 - new_alpha))
+                        };
+
+                        let r = scale(color.r(), base_color[0]);
+                        let g = scale(color.g(), base_color[1]);
+                        let b = scale(color.b(), base_color[2]);
+                        let alpha = 255.0 * (new_alpha + base_alpha * (1.0 - new_alpha));
+
+                        Rgba([r as u8, g as u8, b as u8, alpha as u8])
                     };
-                    let new_alpha = color.a() as f32 / 255.0;
-                    let base_alpha = base_color[3] as f32 / 255.0;
-
-                    let scale = |dc: u8, bc: u8| {
-                        (dc as f32 * new_alpha) + (bc as f32 * base_alpha * (1.0 - new_alpha))
-                    };
-
-                    let r = scale(color.r(), base_color[0]);
-                    let g = scale(color.g(), base_color[1]);
-                    let b = scale(color.b(), base_color[2]);
-                    let alpha = 255.0 * (new_alpha + base_alpha * (1.0 - new_alpha));
-
-                    let new_color = Rgba([r as u8, g as u8, b as u8, alpha as u8]);
                     match image {
                         DynamicImage::ImageRgba8(buf) => {
                             *buf.get_pixel_mut(px as u32, py as u32) = new_color
@@ -307,7 +312,6 @@ fn draw_item(
                     // let a = 255.0 * (new_alpha + base_alpha * (1.0 - new_alpha));
                     // image.put_pixel(px, py, Rgba([r as u8, g as u8, b as u8, a as u8]));
                 } else {
-                    println!("{:#?}", (d_x, d_y, d_w, d_h));
                     count_pixel_out += 1;
                 }
             },
