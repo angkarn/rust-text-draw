@@ -52,11 +52,11 @@ pub fn fill_rect(canvas: &mut RgbaImage, rect: Rect, color: Color) {
     for y in y0 as usize..y1 as usize {
         let row = &mut raw[y * stride + x0 as usize * 4..y * stride + x1 as usize * 4];
         if color.a == 255 {
-            for px in row.chunks_exact_mut(4) {
-                px.copy_from_slice(&src);
+            for px in row.as_chunks_mut::<4>().0 {
+                *px = src;
             }
         } else {
-            for px in row.chunks_exact_mut(4) {
+            for px in row.as_chunks_mut::<4>().0 {
                 blend(px, src);
             }
         }
@@ -131,7 +131,7 @@ pub fn fill_box(
             let raw: &mut [u8] = canvas;
             let row = &mut raw
                 [y as usize * stride + ix0 as usize * 4..y as usize * stride + ix1 as usize * 4];
-            for px in row.chunks_exact_mut(4) {
+            for px in row.as_chunks_mut::<4>().0 {
                 blend(px, src);
             }
         }
