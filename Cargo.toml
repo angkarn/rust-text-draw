@@ -1,10 +1,30 @@
 [package]
-name = "rust-text-draw"
+name = "textplate"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.89"
+description = "Render data-driven templates of rich, multilingual text onto images"
+repository = "https://github.com/angkarn/rust-text-draw"
+keywords = ["text", "template", "image", "font", "render"]
+categories = ["graphics", "multimedia::images", "text-processing"]
+
+[features]
+default = ["decode"]
+# Decode encoded images (png, jpeg, webp, gif, bmp) with `Assets::insert_encoded`
+decode = ["image/png", "image/jpeg", "image/webp", "image/gif", "image/bmp"]
 
 [dependencies]
-image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif", "bmp"] }
 cosmic-text = { version = "0.19", default-features = false, features = ["std", "swash"] }
-serde = { version = "1.0.209", features = ["derive"], default-features = false }
-json5 = "0.4.1"
+image = { version = "0.25", default-features = false }
+json5 = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+thread_local = "1.1"
+
+[dev-dependencies]
+image = { version = "0.25", default-features = false, features = ["png"] }
+
+[[example]]
+name = "demo"
+required-features = ["decode"]
