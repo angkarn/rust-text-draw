@@ -128,6 +128,12 @@ as-is: quotes or `{{` inside a value never break the template.
 
 Builds for `wasm32-unknown-unknown` and `wasm32-wasip1`.
 
+## Fonts
+
+textplate bundles no fonts: you pass your own to `Fonts`. The fonts in [`fonts/`](fonts), used by
+the tests and the demo, are licensed under the SIL Open Font License 1.1; see
+[`fonts/OFL.txt`](fonts/OFL.txt) for each font's copyright notice and the license.
+
 ## Development
 
 ```sh
